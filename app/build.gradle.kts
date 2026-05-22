@@ -15,15 +15,16 @@ android {
         applicationId = "com.play.puzzle2048"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.3"
+        versionCode = 5
+        versionName = "1.1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
