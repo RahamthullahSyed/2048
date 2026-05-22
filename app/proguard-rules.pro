@@ -19,3 +19,23 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# WorkManager
+-keep class androidx.work.** { *; }
+-dontwarn androidx.work.**
+
+# Room Database (used internally by WorkManager)
+-keep class androidx.room.** { *; }
+-dontwarn androidx.room.**
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Database class * { *; }
+
+# SQLite
+-keep class androidx.sqlite.** { *; }
+
+# AndroidX Startup (used for WorkManager auto-init)
+-keep class androidx.startup.** { *; }
+
+# Firebase (if used)
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**

@@ -10,6 +10,8 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
@@ -21,6 +23,9 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -73,7 +78,9 @@ import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.appopen.AppOpenAd
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.google.android.play.core.appupdate.AppUpdateManager
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
 import kotlinx.coroutines.delay
@@ -82,9 +89,24 @@ class MainActivity : ComponentActivity() {
 
     private var interstitialAd: InterstitialAd? = null
     private lateinit var appOpenAdManager: AppOpenAdManager
-    private val UPDATE_REQUEST_CODE = 123
+    private lateinit var appUpdateManager: AppUpdateManager
+    private val updateLauncher: ActivityResultLauncher<IntentSenderRequest> =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+            if (result.resultCode != RESULT_OK) {
+                // If the update is cancelled or fails, you can decide whether to exit or allow the user to continue.
+                // For IMMEDIATE updates, usually we check again onResume.
+            }
+        }
+
     private var webView: WebView? = null
     private var isWebViewReady by mutableStateOf(false)
+
+    private lateinit var soundPool: SoundPool
+    private var soundMergeId: Int = 0
+    private var soundWinnerId: Int = 0
+    private var soundMilestoneId: Int = 0
+    private var soundGameOverId: Int = 0
+    private var soundsEnabled: Boolean = true
     private var isPageFinishedLoading by mutableStateOf(false)
     private var webViewProgress by mutableStateOf(0.1f)
     private var backPressedTime: Long = 0
@@ -109,8 +131,10 @@ class MainActivity : ComponentActivity() {
         MobileAds.initialize(this) {}
         appOpenAdManager = AppOpenAdManager(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(appOpenAdManager)
+        appUpdateManager = AppUpdateManagerFactory.create(this)
         checkForUpdates()
         loadInterstitialAd()
+        initSoundPool()
 
         // Back button handling
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -136,26 +160,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkForUpdates() {
-        try {
-            val appUpdateManager = AppUpdateManagerFactory.create(applicationContext)
-            appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
-                if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
-                    && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
-                ) {
-                    try {
-                        appUpdateManager.startUpdateFlowForResult(
-                            appUpdateInfo,
-                            AppUpdateType.IMMEDIATE,
-                            this,
-                            UPDATE_REQUEST_CODE
-                        )
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
+        appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+                && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
+            ) {
+                appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    updateLauncher,
+                    AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build()
+                )
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
@@ -163,24 +177,14 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         hideSystemUI()
 
-        try {
-            val appUpdateManager = AppUpdateManagerFactory.create(applicationContext)
-            appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
-                if (appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
-                    try {
-                        appUpdateManager.startUpdateFlowForResult(
-                            appUpdateInfo,
-                            AppUpdateType.IMMEDIATE,
-                            this,
-                            UPDATE_REQUEST_CODE
-                        )
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
+        appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    updateLauncher,
+                    AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build()
+                )
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
@@ -348,6 +352,37 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun initSoundPool() {
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_GAME)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(5)
+            .setAudioAttributes(audioAttributes)
+            .build()
+
+        soundMergeId = soundPool.load(this, R.raw.merge, 1)
+        soundWinnerId = soundPool.load(this, R.raw.winner, 1)
+        soundMilestoneId = soundPool.load(this, R.raw.milestone, 1)
+        soundGameOverId = soundPool.load(this, R.raw.out_of_moves, 1)
+
+        val sharedPref = getSharedPreferences("GamePrefs", Context.MODE_PRIVATE)
+        soundsEnabled = sharedPref.getBoolean("sounds_enabled", true)
+    }
+
+    fun playNativeSound(soundId: Int, volume: Float = 1.0f) {
+        if (soundsEnabled && soundId != 0) {
+            // Priority 1 for game sounds, and remove runOnUiThread for lower latency
+            soundPool.play(soundId, volume, volume, 1, 0, 1f)
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        soundPool.release()
+    }
+
     fun loadInterstitialAd() {
         val adRequest = AdRequest.Builder().build()
         InterstitialAd.load(this, "ca-app-pub-3940256099942544/1033173712", adRequest,
@@ -399,11 +434,12 @@ class MainActivity : ComponentActivity() {
                     val effect = when {
                         effectiveDuration <= 60 -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
                         effectiveDuration <= 120 -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
-                        else -> VibrationEffect.createOneShot(effectiveDuration, VibrationEffect.DEFAULT_AMPLITUDE)
+                        else -> VibrationEffect.createOneShot(effectiveDuration, 255) // Max amplitude for "strong" feedback
                     }
                     vibrator.vibrate(effect)
                 } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator.vibrate(VibrationEffect.createOneShot(effectiveDuration, VibrationEffect.DEFAULT_AMPLITUDE))
+                    val amplitude = if (effectiveDuration > 120) 255 else VibrationEffect.DEFAULT_AMPLITUDE
+                    vibrator.vibrate(VibrationEffect.createOneShot(effectiveDuration, amplitude))
                 } else {
                     @Suppress("DEPRECATION")
                     vibrator.vibrate(effectiveDuration)
@@ -456,7 +492,38 @@ class MainActivity : ComponentActivity() {
             val sharedPref = mContext.getSharedPreferences("GamePrefs", Context.MODE_PRIVATE)
             with(sharedPref.edit()) {
                 putString(key, value)
+                if (key == "2048-sounds") {
+                    soundsEnabled = value == "true"
+                    putBoolean("sounds_enabled", soundsEnabled)
+                }
                 apply()
+            }
+        }
+
+        @JavascriptInterface
+        fun playSound(type: String) {
+            var volume = 1.0f
+            val soundId = when (type) {
+                "merge" -> {
+                    volume = 1.0f
+                    soundMergeId
+                }
+                "winner" -> {
+                    volume = 0.6f
+                    soundWinnerId
+                }
+                "milestone" -> {
+                    volume = 0.35f
+                    soundMilestoneId
+                }
+                "gameover" -> {
+                    volume = 0.6f
+                    soundGameOverId
+                }
+                else -> 0
+            }
+            if (soundId != 0) {
+                (mContext as? MainActivity)?.playNativeSound(soundId, volume)
             }
         }
 

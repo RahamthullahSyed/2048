@@ -116,16 +116,24 @@
         }
         .instruction-box {
             width: 100%;
-            padding: clamp(10px, 2vmin, 12px) clamp(15px, 3vmin, 20px);
-            border: 2px solid rgba(242, 166, 90, 0.6);
+            height: clamp(42px, 8vmin, 54px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(5px, 2vmin, 12px) clamp(10px, 3vmin, 20px);
             border-radius: 8px;
-            background: rgba(242, 166, 90, 0.08);
+            background: #000000;
             text-align: center;
-            font-size: clamp(1rem, 3vmin, 1.15rem);
+            font-size: clamp(0.9rem, 3vmin, 1.15rem);
             color: #ffffff;
             font-weight: 600;
             letter-spacing: 0.5px;
             text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+            transition: opacity 1.5s ease-out;
+            opacity: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .instruction-box b {
             color: #f2a65a;
@@ -440,8 +448,8 @@
                 <div class="score-box">BEST<br><span id="best-score">0</span></div>
             </div>
         </div>
-        <div class="instruction-box">
-            Join the numbers to get to <b>2048!!</b>
+        <div class="instruction-box" id="instruction-box">
+            <span>Join the numbers to get to '<b>2048</b>'</span>
         </div>
     </div>
     <div class="game-board-container" id="board-container">
@@ -551,27 +559,23 @@
     ctx.imageSmoothingEnabled = true;
     let canvasLogicalSize = 0;
 
-    // Base64 Audio snippets for move and merge
-    const SOUNDS = {
-        move: "data:audio/wav;base64,UklGRlIAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YTEAAAAAfoOFiI+Vh3FpXmNpbXZ8g4SFiI+Vh3FpXmNpbXZ8g4SFiI+Vh3FpXmNpbXZ8",
-        merge: "data:audio/wav;base64,UklGRqYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YYEAAAB+g4SGiY6Sk5SXmJmZl5eWlJaTkZCJiIKDfn18e3p5enl6e3x9foGEhoqPkJOVl5mZmpmYlpSUkZCJh4KDfn18e3p6eXp7fX6BhIiOkpKUl5ibmpmYlpSUkpCJh4KDf318e3p6enp7fX6ChIiOkpKUl5iampmZlpeUlJ"
-    };
-
-    const moveAudio = new Audio(SOUNDS.move);
-    const mergeAudio = new Audio(SOUNDS.merge);
-
     let soundsEnabled = localStorage.getItem('2048-sounds') !== 'false';
     let hapticsEnabled = localStorage.getItem('2048-haptics') !== 'false';
 
     function toggleSound(el) {
         soundsEnabled = el.checked;
         localStorage.setItem('2048-sounds', soundsEnabled);
+        if (window.AndroidInterface && window.AndroidInterface.saveData) {
+            window.AndroidInterface.saveData('2048-sounds', soundsEnabled.toString());
+        }
     }
 
     function toggleHaptic(el) {
-        triggerVibration(10);
         hapticsEnabled = el.checked;
         localStorage.setItem('2048-haptics', hapticsEnabled);
+        if (hapticsEnabled) {
+            triggerVibration(150);
+        }
     }
 
     function toggleSettings() {
@@ -614,19 +618,9 @@
 
     function playSound(type) {
         if (!soundsEnabled) return;
-        try {
-            if (type === 'merge') {
-                mergeAudio.pause();
-                mergeAudio.currentTime = 0;
-                mergeAudio.volume = 0.3;
-                mergeAudio.play().catch(()=>{});
-            } else {
-                moveAudio.pause();
-                moveAudio.currentTime = 0;
-                moveAudio.volume = 0.15;
-                moveAudio.play().catch(()=>{});
-            }
-        } catch(e) {}
+        if (window.AndroidInterface && window.AndroidInterface.playSound) {
+            window.AndroidInterface.playSound(type);
+        }
     }
 
     // Modern vibrant color palette optimized for dark backgrounds
@@ -838,7 +832,10 @@
     let targetScoreDisplay = 0;
     let lastRenderedScore = 0;
 
-    const milestones = [32, 64, 128, 256, 512, 1024, 2048];
+    let firstMoveMade = false;
+    let cheerTimeout = null;
+
+    const milestones = [8, 16, 32, 64, 128, 256, 512, 1024, 2048];
     let achievedMilestones = new Set(JSON.parse(localStorage.getItem('2048-milestones') || "[]"));
     let confettiParticles = [];
 
@@ -859,8 +856,6 @@
 
     let previousState = null;
     let requiresSort = false;
-    let isAnimating = false;
-    let bufferedMove = null;
 
     let lastTime = 0;
     let avgFrameTime = 0.016;
@@ -895,6 +890,8 @@
         }
 
         localStorage.setItem('2048-state-v1', stateStr);
+        localStorage.setItem('2048-milestones', JSON.stringify([...achievedMilestones]));
+        localStorage.setItem('2048-best-v1', bestScore.toString());
     }
 
     function savePreviousState() {
@@ -906,10 +903,9 @@
     }
 
     function undoMove() {
-        if (!previousState || isAnimating) return;
+        if (!previousState) return;
 
         triggerVibration(15);
-        bufferedMove = null;
         score = previousState.score;
         targetScoreDisplay = score;
 
@@ -989,6 +985,21 @@
                     undoBtn.style.opacity = 0.5;
 
                     requiresSort = true;
+
+                    firstMoveMade = false;
+                    let ibox = document.getElementById('instruction-box');
+                    if (ibox) {
+                        ibox.style.opacity = '1';
+                        ibox.style.transition = 'none';
+                        ibox.innerHTML = "<span>Join the numbers to get to '<b>2048</b>'</span>";
+                        void ibox.offsetWidth;
+                        ibox.style.transition = 'opacity 1.5s ease-out';
+                    }
+                    if (cheerTimeout) {
+                        clearTimeout(cheerTimeout);
+                        cheerTimeout = null;
+                    }
+
                     return; // Successfully restored
                 }
             } catch(e) {}
@@ -1000,15 +1011,30 @@
         score = 0;
         gameOver = false;
         hasWon = false;
-        bufferedMove = null;
         currentScoreDisplay = 0;
         targetScoreDisplay = 0;
         lastRenderedScore = 0;
-        achievedMilestones = new Set(JSON.parse(localStorage.getItem('2048-milestones') || "[]"));
+        achievedMilestones = new Set();
         confettiParticles = [];
 
         document.getElementById('score').innerText = '0';
         document.getElementById('best-score').innerText = bestScore;
+
+        let ibox = document.getElementById('instruction-box');
+        if (ibox) {
+            ibox.style.opacity = '1';
+            ibox.style.transition = 'none';
+            ibox.innerHTML = "<span>Join the numbers to get to '<b>2048</b>'</span>";
+            // force reflow to ensure transition reset
+            void ibox.offsetWidth;
+            ibox.style.transition = 'opacity 1.5s ease-out';
+        }
+        firstMoveMade = false;
+        if (cheerTimeout) {
+            clearTimeout(cheerTimeout);
+            cheerTimeout = null;
+        }
+
         document.getElementById('game-over').classList.remove('visible');
         document.getElementById('game-won').classList.remove('visible');
 
@@ -1041,12 +1067,8 @@
         requiresSort = true;
     }
 
-    function move(dx, dy, isBuffered = false) {
+    function move(dx, dy) {
         if (gameOver) return;
-        if (!isBuffered && isAnimating) {
-            bufferedMove = { dx, dy };
-            return;
-        }
 
         savePreviousState();
 
@@ -1105,23 +1127,44 @@
                             achievedMilestones.add(destTile.targetVal);
                             localStorage.setItem('2048-milestones', JSON.stringify([...achievedMilestones]));
                             triggerConfetti(destTile.r, destTile.c);
+                            playSound('milestone');
+
+                            let ibox = document.getElementById('instruction-box');
+                            if (ibox) {
+                                ibox.innerHTML = `<span>WOW!...You unlocked '<b>${destTile.targetVal}</b>' 🎉</span>`;
+                                ibox.style.transition = 'none';
+                                ibox.style.opacity = '1';
+                                void ibox.offsetWidth;
+                                ibox.style.transition = 'opacity 1.5s ease-out';
+
+                                if (cheerTimeout) {
+                                    clearTimeout(cheerTimeout);
+                                }
+                                cheerTimeout = setTimeout(() => {
+                                    ibox.style.opacity = '0';
+                                    cheerTimeout = null;
+                                }, 5000); // Wait 5 seconds then start 1.5s fade
+                            }
                         }
 
                         tile.r = destR;
                         tile.c = destC;
-                        tile.fromR = r;
-                        tile.fromC = c;
+                        tile.fromR = tile.visR;
+                        tile.fromC = tile.visC;
                         tile.moveProgress = 0;
                         tile.removeAfterMove = true;
                         tile.mergePartner = destTile;
                         requiresSort = true;
+
+                        // Play merge sound immediately when logical merge is determined
+                        playSound('merge');
                     } else {
                     // Slide Empty
                         grid[destR][destC] = tile;
                         tile.r = destR;
                         tile.c = destC;
-                        tile.fromR = r;
-                        tile.fromC = c;
+                        tile.fromR = tile.visR;
+                        tile.fromC = tile.visC;
                         tile.moveProgress = 0;
                     }
                 }
@@ -1129,7 +1172,17 @@
         }
 
         if (moved) {
-            playSound(scoreAdded > 0 ? 'merge' : 'move');
+            if (!firstMoveMade) {
+                firstMoveMade = true;
+                let ibox = document.getElementById('instruction-box');
+                if (ibox && !cheerTimeout) {
+                    ibox.style.opacity = '0';
+                }
+            }
+
+            if (scoreAdded > 0) {
+                // playSound('merge'); // Handled per-tile for better timing
+            }
 
             score += scoreAdded;
             if (score > bestScore) {
@@ -1163,8 +1216,6 @@
                 checkGameWon();
                 checkGameOver();
             }, 200);
-        } else {
-            triggerVibration(5); // Feedback for blocked moves
         }
     }
 
@@ -1176,6 +1227,7 @@
                     hasWon = true;
                     document.getElementById('game-won').classList.add('visible');
                     triggerVibration(100);
+                    playSound('winner');
 
                     // Show Interstitial Ad on Game Won with 1.5s delay
                     setTimeout(() => {
@@ -1209,6 +1261,7 @@
         gameOver = true;
         document.getElementById('game-over').classList.add('visible');
         triggerVibration(80);
+        playSound('gameover');
 
         // Show Interstitial Ad on Game Over with 1.5s delay
         setTimeout(() => {
@@ -1260,21 +1313,10 @@
         }
 
         // Foreground Entity Layer, draw deterministically
-        let currentlyAnimating = false;
         tiles.forEach(t => {
             t.update(dt);
-            if (t.moveProgress < 1 || t.isSpawning || (t.mergeProgress > 0 && t.mergeProgress < 1)) {
-                currentlyAnimating = true;
-            }
             t.draw(ctx, cellW, pad, avgFrameTime);
         });
-        isAnimating = currentlyAnimating; // Input Lock
-
-        if (bufferedMove && tiles.every(t => t.moveProgress > 0.7 && !t.isSpawning && t.mergeProgress > 0.6)) {
-            let moveData = bufferedMove;
-            bufferedMove = null;
-            move(moveData.dx, moveData.dy, true);
-        }
 
         if (confettiParticles.length > 0) {
             ctx.save();
@@ -1354,10 +1396,6 @@
 
     canvas.addEventListener('touchmove', e => {
         if (!swipeActive) return;
-
-        const now = Date.now();
-        if (now - lastSwipeTime < 60) return;
-        lastSwipeTime = now;
 
         let dx = e.touches[0].clientX - touchStartX;
         let dy = e.touches[0].clientY - touchStartY;
