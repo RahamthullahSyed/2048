@@ -213,6 +213,13 @@ class MainActivity : ComponentActivity() {
                 val barThickness = screenHeight * (20f / 640f)
 
                 if (!isWebViewReady) {
+                    Image(
+                        painter = painterResource(id = R.drawable.splash_screen),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.FillBounds
+                    )
+
                     val animatedProgress by animateFloatAsState(
                         targetValue = webViewProgress,
                         animationSpec = tween(durationMillis = 800), // Predictable duration
