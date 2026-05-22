@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>2048 Brain Puzzle</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #f0f0f0;
+            --board-bg: #222222;
+            --board-size: min(92vw, 100dvh - 180px, 500px);
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', 'Roboto', 'Helvetica Neue', sans-serif;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background: radial-gradient(circle at center, #2e2e30 0%, #121212 100%);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            width: 100vw;
+        }
+        #game-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 10px;
+        }
+        .top-ui {
+            width: var(--board-size);
+            display: flex;
+            flex-direction: column;
+            gap: max(1vh, 10px);
+            margin-bottom: max(2vh, 15px);
+            flex-shrink: 0;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            white-space: nowrap;
+        }
+        h1.game-title {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: var(--board-bg);
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            font-weight: 800;
+            line-height: 1;
+            margin: 0;
+            flex-shrink: 0;
+        }
+        .title-main {
+            font-size: clamp(1.6rem, 5vmin, 2rem);
+            letter-spacing: -1px;
+            color: skyblue;
+        }
+        .title-sub {
+            font-size: clamp(0.75rem, 2.5vmin, 0.9rem);
+            color: #ffffff;
+            letter-spacing: 0;
+            margin-top: 4px;
+        }
+        .scores {
+            display: flex;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .score-box {
+            background: var(--board-bg);
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            text-align: center;
+            font-size: clamp(0.7rem, 2vmin, 0.8rem);
+            font-weight: 600;
+            color: #999;
+            min-width: clamp(60px, 15vmin, 75px);
+        }
+        .score-box span {
+            display: block;
+            font-size: clamp(1.1rem, 3.5vmin, 1.4rem);
+            font-weight: 700;
+            margin-top: 2px;
+            transition: transform 0.1s ease-out;
+            transform-origin: center;
+        }
+        #score { color: #f2a65a; }
+        #best-score { color: #ffd700; }
+        .bottom-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: var(--board-size);
+            margin-top: max(2vh, 15px);
+            gap: 15px;
+        }
+        .instruction-box {
+            width: 100%;
+            padding: clamp(10px, 2vmin, 12px) clamp(15px, 3vmin, 20px);
+            border: 2px solid rgba(242, 166, 90, 0.6);
+            border-radius: 8px;
+            background: rgba(242, 166, 90, 0.08);
+            text-align: center;
+            font-size: clamp(1rem, 3vmin, 1.15rem);
+            color: #ffffff;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+        }
+        .instruction-box b {
+            color: #f2a65a;
+            font-weight: 800;
+            text-shadow: 0 1px 4px rgba(242, 166, 90, 0.4);
+        }
+        .btn {
+            background-color: #4a148c; /* Dark Purple */
+            color: #fff;
+            border: none;
+            padding: clamp(8px, 2vmin, 12px) clamp(14px, 3vmin, 20px);
+            font-size: clamp(0.9rem, 2.5vmin, 1.05rem);
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s, opacity 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn:hover:not(:disabled) {
+            background-color: #6a1b9a;
+        }
+        .btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        .btn:disabled {
+            cursor: not-allowed;
+        }
+        .game-board-container {
+            position: relative;
+            width: var(--board-size);
+            height: var(--board-size);
+            background: var(--board-bg);
+            border-radius: 12px;
+            touch-action: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.02);
+            flex-shrink: 0;
+            transition: transform 0.1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        #game-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            display: block;
+        }
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 100;
+        }
+        .overlay.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .overlay-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform: scale(0.95);
+            transition: transform 0.4s ease;
+        }
+        .overlay.visible .overlay-content {
+            transform: scale(1);
+        }
+        .overlay h2 {
+            font-size: clamp(2rem, 8vmin, 3rem);
+            margin-bottom: 5px;
+            color: #fff;
+            font-weight: 800;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            text-align: center;
+            line-height: 1.1;
+            letter-spacing: 1px;
+        }
+        .overlay p {
+            font-size: clamp(1rem, 3vmin, 1.2rem);
+            color: #ccc;
+            margin-bottom: 25px;
+        }
+        .overlay .btn {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            padding: clamp(12px, 3vmin, 16px) clamp(20px, 5vmin, 28px);
+            font-size: clamp(1rem, 3.5vmin, 1.25rem);
+        }
+
+        /* Settings Card Styles */
+        .settings-card {
+            background: #1c1c1e;
+            border-radius: 14px;
+            padding: 20px;
+            border: 1px solid rgba(255,255,255,0.06);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+            width: 90%;
+            max-width: 320px;
+            position: relative;
+        }
+
+        /* Full Screen Overlay Styles */
+        .full-screen-overlay {
+            justify-content: flex-start;
+            background: #121212;
+        }
+        .overlay-header {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: clamp(30px, 5vh, 45px) 20px 15px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            position: relative;
+        }
+        .overlay-header .back-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            padding: 5px;
+            cursor: pointer;
+            z-index: 2;
+        }
+        .overlay-header h2 {
+            position: absolute;
+            left: 0;
+            right: 0;
+            margin: 0;
+            font-size: 1.3rem;
+            text-align: center;
+            z-index: 1;
+            letter-spacing: 0px;
+        }
+        .overlay-body {
+            width: 100%;
+            padding: 25px 20px;
+            overflow-y: auto;
+            flex: 1;
+            text-align: left;
+            color: #ddd;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+        .overlay-body p {
+            margin-bottom: 20px;
+        }
+
+        /* Settings Styles */
+        .settings-btn {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.8;
+            transition: opacity 0.2s, transform 0.2s;
+            margin-left: 5px;
+        }
+        .settings-btn:hover {
+            opacity: 1;
+            transform: rotate(30deg);
+        }
+        .settings-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+        }
+        .settings-section {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+        }
+        .settings-title {
+            font-size: 0.85rem;
+            color: #888;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 14px;
+            background: #262626;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.06);
+            transition: background 0.2s ease, transform 0.1s ease;
+            width: 100%;
+            cursor: pointer;
+        }
+        .settings-item:active {
+            transform: scale(0.98);
+        }
+        .settings-item span {
+            font-size: 1rem;
+            color: #eee;
+            font-weight: 500;
+        }
+        .support-section {
+            margin-top: 5px;
+        }
+        .settings-buttons {
+            display: flex;
+            gap: 12px;
+            width: 100%;
+        }
+        .settings-buttons .btn {
+            flex: 1;
+            justify-content: center;
+        }
+        .settings-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.06);
+            margin: 5px 0;
+        }
+        .about-link {
+            display: block;
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #ccc;
+            font-size: 0.95rem;
+            transition: background 0.2s;
+            text-decoration: none;
+        }
+        .about-link:active {
+            background: rgba(255,255,255,0.08);
+        }
+        .settings-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            padding: 5px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .settings-close:hover { opacity: 1; }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+            transform: scale(0.9);
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #555;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #58e200; }
+        input:checked + .slider:before { transform: translateX(22px); }
+    </style>
+</head>
+<body>
+<button class="settings-btn" style="position: absolute; top: clamp(30px, 5vh, 45px); left: 20px; opacity: 1; z-index: 10;" onclick="shareApp()" aria-label="Share">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+</button>
+<button class="settings-btn" style="position: absolute; top: clamp(30px, 5vh, 45px); right: 20px; opacity: 1; z-index: 10;" onclick="toggleSettings()" aria-label="Settings">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+    </svg>
+</button>
+<div id="game-wrapper">
+    <div class="top-ui">
+        <div class="header">
+            <h1 class="game-title">
+                <span class="title-main">2048</span>
+                <span class="title-sub">Brain Puzzle</span>
+            </h1>
+            <div class="scores" style="align-items: center;">
+                <div class="score-box">SCORE<br><span id="score">0</span></div>
+                <div class="score-box">BEST<br><span id="best-score">0</span></div>
+            </div>
+        </div>
+        <div class="instruction-box">
+            Join the numbers to get to <b>2048!!</b>
+        </div>
+    </div>
+    <div class="game-board-container" id="board-container">
+        <canvas id="game-canvas"></canvas>
+
+    </div>
+    <div class="bottom-controls">
+        <button class="btn" id="undo-btn" onclick="undoMove()" style="opacity: 0.5; background-color: #333; border: 2px solid white;" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+            Undo
+        </button>
+        <button class="btn" onclick="initGame(false)" style="border: 2px solid white;">New Game</button>
+    </div>
+
+    <div id="game-over" class="overlay">
+        <div class="overlay-content">
+            <h2>Game Over!</h2>
+            <p>No more moves available</p>
+            <div style="display:flex; gap:10px;">
+                <button class="btn" onclick="initGame(false)" style="border: 2px solid white;">Try Again</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-won" class="overlay">
+        <div class="overlay-content">
+            <h2>Game<br>Completed!</h2>
+            <p>You reached 2048!</p>
+            <div style="display:flex; gap:10px;">
+                <button class="btn" onclick="document.getElementById('game-won').classList.remove('visible')">Keep Playing</button>
+                <button class="btn" onclick="initGame(false)" style="border: 2px solid white;">Try Again</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-overlay" class="overlay">
+        <div class="overlay-content settings-card">
+            <h2 style="margin-bottom: 20px;">Settings</h2>
+            <div class="settings-menu">
+                <div class="settings-section">
+                    <label class="settings-item">
+                        <span>Sounds</span>
+                        <div class="switch">
+                            <input type="checkbox" id="sounds-toggle" checked onchange="toggleSound(this)">
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                    <label class="settings-item">
+                        <span>Haptics</span>
+                        <div class="switch">
+                            <input type="checkbox" id="haptics-toggle" checked onchange="toggleHaptic(this)">
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="settings-divider"></div>
+
+                <div class="settings-section support-section" style="align-items: center; gap: 6px;">
+                    <span style="color: #ffd700; white-space: nowrap; font-size: clamp(0.9rem, 3.5vmin, 1.05rem); font-weight: 700;">Enjoying the 2048 Brain Puzzle!</span>
+                    <span style="color: #aaa; font-size: 0.8rem; font-weight: 600; letter-spacing: 1px; margin-bottom: 4px;">SUPPORT US! 👇👇👇</span>
+                    <div class="settings-buttons">
+                        <button class="btn" style="border: 2px solid white;" onclick="shareApp()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                            Share
+                        </button>
+                        <button class="btn" style="border: 2px solid white; background-color: orangered;" onclick="rateApp()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                            Rate
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-divider"></div>
+
+                <div class="settings-section">
+                    <a href="#" class="about-link" onclick="showAbout(event)">About & Privacy</a>
+                </div>
+            </div>
+            <button class="settings-close" onclick="document.getElementById('settings-overlay').classList.remove('visible')">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+    </div>
+
+    <div id="about-overlay" class="overlay full-screen-overlay">
+        <div class="overlay-header">
+            <button class="back-btn" onclick="document.getElementById('about-overlay').classList.remove('visible'); document.getElementById('settings-overlay').classList.add('visible');">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+            </button>
+            <h2>About & Privacy</h2>
+        </div>
+        <div class="overlay-body">
+            <p><b>2048 Brain Puzzle</b></p>
+            <p>2048 Brain Puzzle is designed to be played offline. We do not collect, store, or share any personal user data directly.</p>
+            <p>However, this app uses third-party services such as Google AdMob, which may collect and use information to provide personalised advertisements. This may include data such as device information, usage data, and advertising identifiers.</p>
+            <p>We do not control and are not responsible for how third-party services collect or use your data. We recommend reviewing their privacy policies for more information.</p>
+            <p>By using this app, you agree to the use of such third-party services.</p>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    let canvasLogicalSize = 0;
+
+    // Base64 Audio snippets for move and merge
+    const SOUNDS = {
+        move: "data:audio/wav;base64,UklGRlIAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YTEAAAAAfoOFiI+Vh3FpXmNpbXZ8g4SFiI+Vh3FpXmNpbXZ8g4SFiI+Vh3FpXmNpbXZ8",
+        merge: "data:audio/wav;base64,UklGRqYAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YYEAAAB+g4SGiY6Sk5SXmJmZl5eWlJaTkZCJiIKDfn18e3p5enl6e3x9foGEhoqPkJOVl5mZmpmYlpSUkZCJh4KDfn18e3p6eXp7fX6BhIiOkpKUl5ibmpmYlpSUkpCJh4KDf318e3p6enp7fX6ChIiOkpKUl5iampmZlpeUlJ"
+    };
+
+    const moveAudio = new Audio(SOUNDS.move);
+    const mergeAudio = new Audio(SOUNDS.merge);
+
+    let soundsEnabled = localStorage.getItem('2048-sounds') !== 'false';
+    let hapticsEnabled = localStorage.getItem('2048-haptics') !== 'false';
+
+    function toggleSound(el) {
+        soundsEnabled = el.checked;
+        localStorage.setItem('2048-sounds', soundsEnabled);
+    }
+
+    function toggleHaptic(el) {
+        hapticsEnabled = el.checked;
+        localStorage.setItem('2048-haptics', hapticsEnabled);
+    }
+
+    function toggleSettings() {
+        document.getElementById('settings-overlay').classList.add('visible');
+        document.getElementById('sounds-toggle').checked = soundsEnabled;
+        document.getElementById('haptics-toggle').checked = hapticsEnabled;
+    }
+
+    function shareApp() {
+        if (window.AndroidInterface && window.AndroidInterface.shareApp) {
+            window.AndroidInterface.shareApp();
+        } else if (navigator.share) {
+            navigator.share({
+                title: '2048 Brain Puzzle',
+                text: 'Check out my score in 2048 Brain Puzzle: ' + bestScore,
+                url: window.location.href
+            }).catch(()=>{});
+        } else {
+            alert("Sharing is not supported on this browser.");
+        }
+    }
+
+    function rateApp() {
+        if (window.AndroidInterface && window.AndroidInterface.rateApp) {
+            window.AndroidInterface.rateApp();
+        } else {
+            alert("Thanks for wanting to rate! Currently, rating is only available on app stores.");
+        }
+    }
+
+    function showAbout(e) {
+        e.preventDefault();
+        // document.getElementById('settings-overlay').classList.remove('visible'); // Optional: keep settings open behind it
+        document.getElementById('about-overlay').classList.add('visible');
+    }
+
+    function playSound(type) {
+        if (!soundsEnabled) return;
+        try {
+            if (type === 'merge') {
+                mergeAudio.pause();
+                mergeAudio.currentTime = 0;
+                mergeAudio.volume = 0.3;
+                mergeAudio.play().catch(()=>{});
+            } else {
+                moveAudio.pause();
+                moveAudio.currentTime = 0;
+                moveAudio.volume = 0.15;
+                moveAudio.play().catch(()=>{});
+            }
+        } catch(e) {}
+    }
+
+    // Modern vibrant color palette optimized for dark backgrounds
+    const COLORS = {
+        empty: "#333333",
+        2: { bg: "#4c4c4e", text: "#e5e5ea" },
+        4: { bg: "#5c5c5e", text: "#e5e5ea" },
+        8: { bg: "#f2a65a", text: "#ffffff" },
+        16: { bg: "#f57c4f", text: "#ffffff" },
+        32: { bg: "#f65e3b", text: "#ffffff" },
+        64: { bg: "#ed5121", text: "#ffffff" },
+        128: { bg: "#f2d04b", text: "#ffffff", glow: true },
+        256: { bg: "#edcc61", text: "#ffffff", glow: true },
+        512: { bg: "#ecca4b", text: "#ffffff", glow: true },
+        1024: { bg: "#e3ba14", text: "#ffffff", glow: true },
+        2048: { bg: "#e2b300", text: "#ffffff", glow: true },
+        4096: { bg: "#58e200", text: "#ffffff", glow: true },
+        8192: { bg: "#00e2b4", text: "#ffffff", glow: true }
+    };
+
+    function getTileColor(val) {
+        return COLORS[val] || { bg: "#ff3366", text: "#ffffff", glow: true };
+    }
+
+    function setCtx(ctx, prop, val) {
+        if (ctx[prop] !== val) ctx[prop] = val;
+    }
+
+    function drawRoundRect(ctx, x, y, width, height, radius, fill) {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+        if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    }
+
+    class Tile {
+        constructor(r, c, val, isInitial = false) {
+            this.id = Math.random();
+            this.r = r;
+            this.c = c;
+            this.val = val;
+            this.targetVal = val;
+            this.visR = r;
+            this.visC = c;
+
+            this.isDead = false;
+            this.removeAfterMove = false;
+            this.mergePartner = null;
+            this.mergedThisTurn = false;
+
+            // Animation States
+            this.visScale = isInitial ? 1 : 0;
+            this.isSpawning = !isInitial;
+            this.spawnDelay = isInitial ? 0 : 0.06;
+            this.spawnProgress = 0;
+
+            this.moveProgress = 1;
+            this.fromR = r;
+            this.fromC = c;
+
+            this.mergeProgress = 1;
+        }
+
+        update(dt) {
+            // Continuous move animation
+            if (this.moveProgress < 1) {
+                this.moveProgress += dt / 0.05; // 50ms slide
+                if (this.moveProgress >= 1) {
+                    this.moveProgress = 1;
+                    this.visR = this.r;
+                    this.visC = this.c;
+
+                    if (this.removeAfterMove && !this.isDead) {
+                        this.isDead = true;
+                        if (this.mergePartner) {
+                            this.mergePartner.val = this.mergePartner.targetVal;
+                            this.mergePartner.mergeProgress = 0; // Trigger Bounce
+                        }
+                    }
+                } else {
+                    let t = this.moveProgress;
+                    let Math_pow = Math.pow(1 - t, 3);
+                    let easeOut = 1 - Math_pow;
+                    this.visR = this.fromR + (this.r - this.fromR) * easeOut;
+                    this.visC = this.fromC + (this.c - this.fromC) * easeOut;
+                }
+            }
+
+            // Spawning visual effect
+            if (this.isSpawning) {
+                if (this.spawnDelay > 0) {
+                    this.spawnDelay -= dt;
+                } else {
+                    this.spawnProgress += dt / 0.10; // 100ms pop
+                    if (this.spawnProgress > 1) {
+                        this.spawnProgress = 1;
+                        this.isSpawning = false;
+                    }
+                    this.visScale = this.spawnProgress;
+                }
+            }
+
+            // Merge pop visual effect
+            if (this.mergeProgress < 1) {
+                this.mergeProgress += dt / 0.07;
+                if (this.mergeProgress > 1) {
+                    this.mergeProgress = 1;
+                    this.visScale = 1;
+                } else {
+                    let t = this.mergeProgress;
+                    this.visScale = 1 + Math.sin(t * Math.PI) * 0.10;
+                }
+            }
+        }
+
+        draw(ctx, cellW, pad, avgFrameTime) {
+            if (this.visScale <= 0) return;
+
+            let x = pad + this.visC * (cellW + pad);
+            let y = pad + this.visR * (cellW + pad);
+            let cx = x + cellW / 2;
+            let cy = y + cellW / 2;
+            let radius = cellW * 0.08;
+            let colorInfo = getTileColor(this.val);
+            let scaled = this.visScale !== 1;
+
+            if (scaled) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.scale(this.visScale, this.visScale);
+                ctx.translate(-cx, -cy);
+            }
+
+            if (this.moveProgress < 1) {
+                setCtx(ctx, 'globalAlpha', 0.98);
+            }
+
+            // Shadow / Glow optimization based on frame time
+            if (this.moveProgress === 1 && !this.isSpawning && this.mergeProgress === 1) {
+                setCtx(ctx, 'shadowBlur', 0);
+                setCtx(ctx, 'shadowColor', "transparent");
+            } else if (colorInfo.glow && avgFrameTime < 0.033) {
+                setCtx(ctx, 'shadowColor', colorInfo.bg);
+                setCtx(ctx, 'shadowBlur', Math.min(cellW * 0.025, 4));
+                setCtx(ctx, 'shadowOffsetY', 0);
+            } else if (!colorInfo.glow) {
+                setCtx(ctx, 'shadowColor', 'rgba(0,0,0,0.25)');
+                setCtx(ctx, 'shadowBlur', Math.min(cellW * 0.025, 4));
+                setCtx(ctx, 'shadowOffsetY', Math.min(cellW * 0.015, 2));
+            } else {
+                setCtx(ctx, 'shadowBlur', 0);
+            }
+
+            // Draw tile background
+            drawRoundRect(ctx, x, y, cellW, cellW, radius, colorInfo.bg);
+
+            if (!colorInfo.glow) {
+                setCtx(ctx, 'shadowBlur', 0); // Skip shadow after base tile fill to avoid affecting border/highlight
+
+                // Subtle inner highlight
+                setCtx(ctx, 'fillStyle', 'rgba(255,255,255,0.03)');
+                drawRoundRect(ctx, x, y, cellW, cellW * 0.5, radius, ctx.fillStyle);
+            }
+
+            setCtx(ctx, 'shadowOffsetY', 0);
+            setCtx(ctx, 'shadowBlur', 0);
+
+            // Text Rendering
+            setCtx(ctx, 'textAlign', 'center');
+            setCtx(ctx, 'textBaseline', 'middle');
+
+            let digits = this.val.toString().length;
+            let fontSize = cellW * (digits > 3 ? 0.35 : (digits > 2 ? 0.45 : 0.55));
+            setCtx(ctx, 'font', `bold ${fontSize}px sans-serif`);
+
+            setCtx(ctx, 'shadowBlur', 0); // Maintain crisp text
+
+            // Subtle text shadow
+            setCtx(ctx, 'fillStyle', 'rgba(0,0,0,0.18)');
+            ctx.fillText(this.val, cx + 0.4, cy + fontSize * 0.06 + 0.4);
+
+            setCtx(ctx, 'fillStyle', (this.val >= 128) ? "#2b2b2b" : colorInfo.text);
+            ctx.fillText(this.val, cx, cy + fontSize * 0.06);
+
+            setCtx(ctx, 'globalAlpha', 1); // Reset Alpha
+
+            if (scaled) {
+                ctx.restore();
+            }
+        }
+    }
+
+    // Global State
+    let grid = [];
+    let tiles = [];
+    let score = 0;
+    let bestScore = localStorage.getItem('2048-best-v1') || 0;
+    let gameOver = false;
+    let hasWon = false;
+    let currentScoreDisplay = 0;
+    let targetScoreDisplay = 0;
+    let lastRenderedScore = 0;
+
+    const milestones = [32, 64, 128, 256, 512, 1024, 2048];
+    let achievedMilestones = new Set(JSON.parse(localStorage.getItem('2048-milestones') || "[]"));
+    let confettiParticles = [];
+
+    function triggerConfetti(row, col) {
+        let count = 20;
+        for (let i = 0; i < count; i++) {
+            if (confettiParticles.length >= 40) break; // Performance Safety
+            confettiParticles.push({
+                x: col + 0.5 + (Math.random() - 0.5) * 0.2,
+                y: row + 0.5 + (Math.random() - 0.5) * 0.2,
+                vx: (Math.random() - 0.5) * 2.5,
+                vy: (Math.random() - 0.5) * -3,
+                life: 1,
+                color: `hsl(${Math.random()*360}, 80%, 60%)`
+            });
+        }
+    }
+
+    let previousState = null;
+    let requiresSort = false;
+    let isAnimating = false;
+    let bufferedMove = null;
+
+    let lastTime = 0;
+    let avgFrameTime = 0.016;
+    let lastVibrationTime = 0;
+
+    function triggerVibration(pattern) {
+        if (!hapticsEnabled) return;
+
+        // Native Haptics Bridge
+        if (window.AndroidInterface && window.AndroidInterface.vibrate) {
+            // If pattern is an array, take the first element as duration
+            const duration = Array.isArray(pattern) ? pattern[0] : pattern;
+            window.AndroidInterface.vibrate(duration);
+        } else if (navigator.vibrate) {
+            const now = Date.now();
+            if (now - lastVibrationTime > 100) {
+                try { navigator.vibrate(pattern); } catch (e) {}
+                lastVibrationTime = now;
+            }
+        }
+    }
+
+    function saveState() {
+        let simpleGrid = grid.map(row => row.map(t => t ? t.targetVal : null));
+        const stateStr = JSON.stringify({ grid: simpleGrid, score: targetScoreDisplay });
+
+        // Native Persistence Bridge
+        if (window.AndroidInterface && window.AndroidInterface.saveData) {
+            window.AndroidInterface.saveData('2048-state-v1', stateStr);
+            window.AndroidInterface.saveData('2048-best-v1', bestScore.toString());
+            window.AndroidInterface.saveData('2048-milestones', JSON.stringify([...achievedMilestones]));
+        }
+
+        localStorage.setItem('2048-state-v1', stateStr);
+    }
+
+    function savePreviousState() {
+        let simpleGrid = grid.map(row => row.map(t => t ? t.targetVal : null));
+        previousState = { grid: simpleGrid, score: targetScoreDisplay };
+        const undoBtn = document.getElementById('undo-btn');
+        undoBtn.disabled = false;
+        undoBtn.style.opacity = 1;
+    }
+
+    function undoMove() {
+        if (!previousState || isAnimating) return;
+
+        bufferedMove = null;
+        score = previousState.score;
+        targetScoreDisplay = score;
+
+        tiles = [];
+        grid = Array(4).fill().map(() => Array(4).fill(null));
+        for (let r=0; r<4; r++) {
+            for (let c=0; c<4; c++) {
+                if (previousState.grid[r][c]) {
+                    let tile = new Tile(r, c, previousState.grid[r][c], true);
+                    grid[r][c] = tile;
+                    tiles.push(tile);
+                }
+            }
+        }
+
+        previousState = null;
+        const undoBtn = document.getElementById('undo-btn');
+        undoBtn.disabled = true;
+        undoBtn.style.opacity = 0.5;
+
+        gameOver = false;
+        document.getElementById('game-over').classList.remove('visible');
+        requiresSort = true;
+
+        saveState();
+    }
+
+    function initGame(restore = true) {
+        // Native Persistence Load
+        let savedState = localStorage.getItem('2048-state-v1');
+        bestScore = localStorage.getItem('2048-best-v1') || 0;
+        let savedMilestones = localStorage.getItem('2048-milestones');
+
+        if (window.AndroidInterface && window.AndroidInterface.loadData) {
+            savedState = window.AndroidInterface.loadData('2048-state-v1', savedState || "");
+            const loadedBest = window.AndroidInterface.loadData('2048-best-v1', bestScore.toString());
+            bestScore = parseInt(loadedBest) || 0;
+            savedMilestones = window.AndroidInterface.loadData('2048-milestones', savedMilestones || "[]");
+        }
+
+        // Restore from state
+        if (restore && savedState) {
+            try {
+                let state = JSON.parse(savedState);
+                if (state.grid) {
+                    grid = Array(4).fill().map(() => Array(4).fill(null));
+                    tiles = [];
+                    for(let r=0; r<4; ++r) {
+                        for(let c=0; c<4; ++c) {
+                            if (state.grid[r][c]) {
+                                let tile = new Tile(r, c, state.grid[r][c], true);
+                                grid[r][c] = tile;
+                                tiles.push(tile);
+                            }
+                        }
+                    }
+                    score = state.score;
+                    targetScoreDisplay = score;
+                    currentScoreDisplay = score;
+
+                    document.getElementById('score').innerText = score;
+                    lastRenderedScore = score;
+                    document.getElementById('best-score').innerText = bestScore;
+
+                    gameOver = false;
+                    hasWon = false;
+                    bufferedMove = null;
+                    achievedMilestones = new Set(JSON.parse(localStorage.getItem('2048-milestones') || "[]"));
+                    confettiParticles = [];
+                    document.getElementById('game-over').classList.remove('visible');
+                    document.getElementById('game-won').classList.remove('visible');
+
+                    previousState = null;
+                    const undoBtn = document.getElementById('undo-btn');
+                    undoBtn.disabled = true;
+                    undoBtn.style.opacity = 0.5;
+
+                    requiresSort = true;
+                    return; // Successfully restored
+                }
+            } catch(e) {}
+        }
+
+        // Fresh Start
+        grid = Array(4).fill().map(() => Array(4).fill(null));
+        tiles = [];
+        score = 0;
+        gameOver = false;
+        hasWon = false;
+        bufferedMove = null;
+        currentScoreDisplay = 0;
+        targetScoreDisplay = 0;
+        lastRenderedScore = 0;
+        achievedMilestones = new Set(JSON.parse(localStorage.getItem('2048-milestones') || "[]"));
+        confettiParticles = [];
+
+        document.getElementById('score').innerText = '0';
+        document.getElementById('best-score').innerText = bestScore;
+        document.getElementById('game-over').classList.remove('visible');
+        document.getElementById('game-won').classList.remove('visible');
+
+        previousState = null;
+        const undoBtn = document.getElementById('undo-btn');
+        undoBtn.disabled = true;
+        undoBtn.style.opacity = 0.5;
+
+        spawnTile(true);
+        spawnTile(true);
+        saveState();
+    }
+
+    function spawnTile(isInitial = false) {
+        let emptySpots = [];
+        for(let r=0; r<4; r++){
+            for(let c=0; c<4; c++){
+                if(!grid[r][c]) emptySpots.push({r, c});
+            }
+        }
+        if(emptySpots.length === 0) return;
+
+        let spot = emptySpots[Math.floor(Math.random() * emptySpots.length)];
+        let chanceOf4 = targetScoreDisplay > 2000 ? 0.2 : 0.1; // Dynamic difficulty
+        let val = Math.random() < (1 - chanceOf4) ? 2 : 4;
+
+        let tile = new Tile(spot.r, spot.c, val, isInitial);
+        grid[spot.r][spot.c] = tile;
+        tiles.push(tile);
+        requiresSort = true;
+    }
+
+    function move(dx, dy) {
+        if (gameOver) return;
+        if (isAnimating) {
+            bufferedMove = { dx, dy };
+            playSound('move');
+            triggerVibration([2]); // Immediate feedback
+            return;
+        }
+
+        savePreviousState();
+
+        let moved = false;
+        let scoreAdded = 0;
+
+        let rStart = dy === 1 ? 3 : 0;
+        let rEnd = dy === 1 ? -1 : 4;
+        let rStep = dy === 1 ? -1 : 1;
+
+        let cStart = dx === 1 ? 3 : 0;
+        let cEnd = dx === 1 ? -1 : 4;
+        let cStep = dx === 1 ? -1 : 1;
+
+        for (let r = rStart; r !== rEnd; r += rStep) {
+            for (let c = cStart; c !== cEnd; c += cStep) {
+                let tile = grid[r][c];
+                if (!tile) continue;
+
+                let destR = r;
+                let destC = c;
+                let nextR = r + dy;
+                let nextC = c + dx;
+
+                while (nextR >= 0 && nextR < 4 && nextC >= 0 && nextC < 4) {
+                    let nextTile = grid[nextR][nextC];
+                    if (!nextTile) {
+                        destR = nextR;
+                        destC = nextC;
+                    } else {
+                        if (nextTile.targetVal === tile.targetVal && !nextTile.mergedThisTurn) {
+                            destR = nextR;
+                            destC = nextC;
+                        }
+                        break;
+                    }
+                    nextR += dy;
+                    nextC += dx;
+                }
+
+                if (destR !== r || destC !== c) {
+                    moved = true;
+                    let destTile = grid[destR][destC];
+                    grid[r][c] = null; // free origin
+
+                    // Merge
+                    if (destTile && destTile.targetVal === tile.targetVal && !destTile.mergedThisTurn) {
+                        destTile.targetVal *= 2;
+                        destTile.mergedThisTurn = true;
+                        scoreAdded += destTile.targetVal;
+
+                        if (milestones.includes(destTile.targetVal) && !achievedMilestones.has(destTile.targetVal)) {
+                            achievedMilestones.add(destTile.targetVal);
+                            localStorage.setItem('2048-milestones', JSON.stringify([...achievedMilestones]));
+                            triggerConfetti(destTile.r, destTile.c);
+                        }
+                        if (destTile.targetVal >= 128) triggerVibration([20]);
+
+                        tile.r = destR;
+                        tile.c = destC;
+                        tile.fromR = r;
+                        tile.fromC = c;
+                        tile.moveProgress = 0;
+                        tile.removeAfterMove = true;
+                        tile.mergePartner = destTile;
+                        requiresSort = true;
+                    } else {
+                    // Slide Empty
+                        grid[destR][destC] = tile;
+                        tile.r = destR;
+                        tile.c = destC;
+                        tile.fromR = r;
+                        tile.fromC = c;
+                        tile.moveProgress = 0;
+                    }
+                }
+            }
+        }
+
+        if (moved) {
+            playSound(scoreAdded > 0 ? 'merge' : 'move');
+
+            score += scoreAdded;
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('2048-best-v1', bestScore);
+            }
+            targetScoreDisplay = score;
+            document.getElementById('best-score').innerText = bestScore;
+
+            if (window.AndroidInterface && window.AndroidInterface.saveData) {
+                window.AndroidInterface.saveData('2048-best-v1', bestScore.toString());
+            }
+
+            // Finalize logical state flags for next turn
+            tiles.forEach(t => t.mergedThisTurn = false);
+
+            spawnTile();
+            saveState();
+
+            if (scoreAdded === 0) triggerVibration([5]); // Soft tap on regular move
+
+            // Evaluate Game Over state asynchronously to permit visible settling
+            setTimeout(() => {
+                checkGameWon();
+                checkGameOver();
+            }, 200);
+        }
+    }
+
+    function checkGameWon() {
+        if (hasWon) return; // Only show once per game
+        for(let r=0; r<4; ++r) {
+            for(let c=0; c<4; ++c) {
+                if (grid[r][c] && grid[r][c].targetVal === 2048) {
+                    hasWon = true;
+                    document.getElementById('game-won').classList.add('visible');
+
+                    // Show Interstitial Ad on Game Won
+                    if (window.AndroidInterface && window.AndroidInterface.showInterstitialAd) {
+                        window.AndroidInterface.showInterstitialAd();
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    function checkGameOver() {
+        let hasEmpty = false;
+        for(let r=0; r<4; ++r) {
+            for(let c=0; c<4; ++c) {
+                if (!grid[r][c]) hasEmpty = true;
+            }
+        }
+        if (hasEmpty) return;
+
+        for(let r=0; r<4; ++r) {
+            for(let c=0; c<4; ++c) {
+                let val = grid[r][c].targetVal;
+                if (c < 3 && grid[r][c+1] && grid[r][c+1].targetVal === val) return;
+                if (r < 3 && grid[r+1][c] && grid[r+1][c].targetVal === val) return;
+            }
+        }
+
+        gameOver = true;
+        document.getElementById('game-over').classList.add('visible');
+
+        // Show Interstitial Ad on Game Over
+        if (window.AndroidInterface && window.AndroidInterface.showInterstitialAd) {
+            window.AndroidInterface.showInterstitialAd();
+        }
+    }
+
+    // ================= RENDERING =================
+
+    function renderLoop(time) {
+        if (!lastTime) lastTime = time;
+        let dt = (time - lastTime) / 1000;
+        lastTime = time;
+
+        // Frame time smoothing for performance throttling
+        avgFrameTime = avgFrameTime * 0.9 + dt * 0.1;
+
+        if (dt > 0.05) dt = 0.05; // Clamp delta time to avoid animation jumps
+
+        updateAndDraw(dt);
+        requestAnimationFrame(renderLoop);
+    }
+
+    function updateAndDraw(dt) {
+        if (!canvasLogicalSize) return;
+
+        let pad = canvasLogicalSize * 0.03;
+        let cellW = (canvasLogicalSize - pad * 5) / 4;
+
+        // Background Layer
+        ctx.clearRect(0, 0, canvasLogicalSize, canvasLogicalSize);
+        for(let r=0; r<4; r++) {
+            for(let c=0; c<4; c++) {
+                let x = pad + c * (cellW + pad);
+                let y = pad + r * (cellW + pad);
+                drawRoundRect(ctx, x, y, cellW, cellW, cellW * 0.08, COLORS.empty);
+            }
+        }
+
+        // Clean unreferenced visual artifacts
+        tiles = tiles.filter(t => !t.isDead);
+
+        // Sort only when state changes structurally
+        if (requiresSort) {
+            tiles.sort((a,b) => a.id - b.id);
+            requiresSort = false;
+        }
+
+        // Foreground Entity Layer, draw deterministically
+        let currentlyAnimating = false;
+        tiles.forEach(t => {
+            t.update(dt);
+            if (t.moveProgress < 1 || t.isSpawning || (t.mergeProgress > 0 && t.mergeProgress < 1)) {
+                currentlyAnimating = true;
+            }
+            t.draw(ctx, cellW, pad, avgFrameTime);
+        });
+        isAnimating = currentlyAnimating; // Input Lock
+
+        if (bufferedMove && tiles.every(t => t.moveProgress > 0.7 && !t.isSpawning && t.mergeProgress > 0.6)) {
+            let moveData = bufferedMove;
+            bufferedMove = null;
+            move(moveData.dx, moveData.dy);
+        }
+
+        if (confettiParticles.length > 0) {
+            ctx.save();
+            confettiParticles.forEach(p => {
+                p.x += p.vx * dt * 3;
+                p.y += p.vy * dt * 3;
+                p.vy += 5 * dt;
+                p.life -= dt * 1.2;
+
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillStyle = p.color;
+                let size = cellW * 0.1;
+                let drawX = pad + p.x * (cellW + pad) - size / 2;
+                let drawY = pad + p.y * (cellW + pad) - size / 2;
+                ctx.fillRect(drawX, drawY, size, size);
+            });
+            ctx.restore();
+            confettiParticles = confettiParticles.filter(p => p.life > 0);
+        }
+
+        // Interpolated Score HUD Updates
+        if (currentScoreDisplay < targetScoreDisplay) {
+            let diff = targetScoreDisplay - currentScoreDisplay;
+            currentScoreDisplay += Math.max(diff * 10 * dt, 150 * dt);
+            if (currentScoreDisplay >= targetScoreDisplay) {
+                currentScoreDisplay = targetScoreDisplay;
+                const scoreEl = document.getElementById('score');
+                scoreEl.style.transform = 'scale(1.25)';
+                setTimeout(() => { scoreEl.style.transform = 'scale(1)'; }, 100);
+            }
+        } else if (currentScoreDisplay > targetScoreDisplay) {
+            currentScoreDisplay = targetScoreDisplay; // when undoing
+        }
+
+        let displayVal = Math.floor(currentScoreDisplay);
+        if (displayVal !== lastRenderedScore) { // DOM Update Optimization
+            document.getElementById('score').innerText = displayVal;
+            lastRenderedScore = displayVal;
+        }
+    }
+
+    let swipeThreshold = 30;
+
+    function resize() {
+        let container = document.getElementById('board-container');
+        let size = Math.floor(container.clientWidth);
+        if (size === canvasLogicalSize && size > 10) return; // Prevent unnecessary recalculation
+        canvasLogicalSize = size;
+
+        swipeThreshold = Math.min(window.innerWidth * 0.05, 40);
+
+        let dpr = window.devicePixelRatio || 1;
+        canvas.width = size * dpr;
+        canvas.height = size * dpr;
+
+        // Fix canvas scaling issue by resetting transform every resize
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        updateAndDraw(0); // Paint immediately
+    }
+    window.addEventListener('resize', resize);
+
+    // ================= INPUT BINDINGS =================
+
+    let touchStartX = null, touchStartY = null;
+    let swipeActive = false;
+
+    canvas.addEventListener('touchstart', e => {
+        if (e.touches.length > 1) return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        swipeActive = true;
+    }, {passive: true});
+
+    let lastSwipeTime = 0;
+
+    canvas.addEventListener('touchmove', e => {
+        if (!swipeActive) return;
+
+        const now = Date.now();
+        if (now - lastSwipeTime < 60) return;
+        lastSwipeTime = now;
+
+        let dx = e.touches[0].clientX - touchStartX;
+        let dy = e.touches[0].clientY - touchStartY;
+
+        if (Math.abs(dx) > swipeThreshold || Math.abs(dy) > swipeThreshold) {
+            if (Math.abs(dx) > Math.abs(dy)) {
+                move(dx > 0 ? 1 : -1, 0);
+            } else {
+                move(0, dy > 0 ? 1 : -1);
+            }
+
+            swipeActive = false;
+        }
+    }, {passive: true});
+
+    canvas.addEventListener('touchend', () => {
+        swipeActive = false;
+        touchStartX = null;
+        touchStartY = null;
+    });
+
+    window.addEventListener('keydown', e => {
+        if (gameOver) return;
+        let dx = 0, dy = 0;
+        if (e.key === 'ArrowUp' || e.key === 'w') dy = -1;
+        else if (e.key === 'ArrowDown' || e.key === 's') dy = 1;
+        else if (e.key === 'ArrowLeft' || e.key === 'a') dx = -1;
+        else if (e.key === 'ArrowRight' || e.key === 'd') dx = 1;
+
+        if (dx !== 0 || dy !== 0) {
+            move(dx, dy);
+            e.preventDefault(); // Prevents default keyboard panning during game play
+        }
+    }, {passive: false});
+
+    function handleBack() {
+        if (document.getElementById('about-overlay').classList.contains('visible')) {
+            document.getElementById('about-overlay').classList.remove('visible');
+            document.getElementById('settings-overlay').classList.add('visible');
+            return true;
+        }
+        if (document.getElementById('settings-overlay').classList.contains('visible')) {
+            document.getElementById('settings-overlay').classList.remove('visible');
+            return true;
+        }
+        if (document.getElementById('game-over').classList.contains('visible') ||
+            document.getElementById('game-won').classList.contains('visible')) {
+            initGame(false);
+            return true;
+        }
+        return false;
+    }
+
+    // Initialize Native Payload
+    window.onload = () => {
+        console.log("Game: window.onload triggered");
+        try {
+            resize();
+            console.log("Game: resize() completed");
+            initGame();
+            console.log("Game: initGame() completed");
+            requestAnimationFrame(renderLoop);
+            console.log("Game: renderLoop started");
+
+            // Signal to Native that page is ready
+            if (window.AndroidInterface && window.AndroidInterface.onPageReady) {
+                window.AndroidInterface.onPageReady();
+            }
+        } catch (e) {
+            console.error("Game: Initialization error: " + e.message);
+        }
+    };
+</script>
+</body>
+</html>
+
