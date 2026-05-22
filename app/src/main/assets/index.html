@@ -471,7 +471,7 @@
             <h2>Game<br>Completed!</h2>
             <p>You reached 2048!</p>
             <div style="display:flex; gap:10px;">
-                <button class="btn" onclick="document.getElementById('game-won').classList.remove('visible')">Keep Playing</button>
+                <button class="btn" onclick="triggerVibration(10); document.getElementById('game-won').classList.remove('visible')">Keep Playing</button>
                 <button class="btn" onclick="initGame(false)" style="border: 2px solid white;">Try Again</button>
             </div>
         </div>
@@ -485,7 +485,7 @@
                     <label class="settings-item">
                         <span>Sounds</span>
                         <div class="switch">
-                            <input type="checkbox" id="sounds-toggle" checked onchange="toggleSound(this)">
+                            <input type="checkbox" id="sounds-toggle" checked onchange="triggerVibration(10); toggleSound(this)">
                             <span class="slider"></span>
                         </div>
                     </label>
@@ -521,7 +521,7 @@
                     <a href="#" class="about-link" onclick="showAbout(event)">About & Privacy</a>
                 </div>
             </div>
-            <button class="settings-close" onclick="document.getElementById('settings-overlay').classList.remove('visible')">
+            <button class="settings-close" onclick="triggerVibration(10); document.getElementById('settings-overlay').classList.remove('visible')">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
         </div>
@@ -529,7 +529,7 @@
 
     <div id="about-overlay" class="overlay full-screen-overlay">
         <div class="overlay-header">
-            <button class="back-btn" onclick="document.getElementById('about-overlay').classList.remove('visible'); document.getElementById('settings-overlay').classList.add('visible');">
+            <button class="back-btn" onclick="triggerVibration(10); document.getElementById('about-overlay').classList.remove('visible'); document.getElementById('settings-overlay').classList.add('visible');">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
             </button>
             <h2>About & Privacy</h2>
@@ -569,17 +569,20 @@
     }
 
     function toggleHaptic(el) {
+        triggerVibration(10);
         hapticsEnabled = el.checked;
         localStorage.setItem('2048-haptics', hapticsEnabled);
     }
 
     function toggleSettings() {
+        triggerVibration(15);
         document.getElementById('settings-overlay').classList.add('visible');
         document.getElementById('sounds-toggle').checked = soundsEnabled;
         document.getElementById('haptics-toggle').checked = hapticsEnabled;
     }
 
     function shareApp() {
+        triggerVibration(15);
         if (window.AndroidInterface && window.AndroidInterface.shareApp) {
             window.AndroidInterface.shareApp();
         } else if (navigator.share) {
@@ -594,6 +597,7 @@
     }
 
     function rateApp() {
+        triggerVibration(15);
         if (window.AndroidInterface && window.AndroidInterface.rateApp) {
             window.AndroidInterface.rateApp();
         } else {
@@ -603,6 +607,7 @@
 
     function showAbout(e) {
         e.preventDefault();
+        triggerVibration(10);
         // document.getElementById('settings-overlay').classList.remove('visible'); // Optional: keep settings open behind it
         document.getElementById('about-overlay').classList.add('visible');
     }
@@ -903,6 +908,7 @@
     function undoMove() {
         if (!previousState || isAnimating) return;
 
+        triggerVibration(15);
         bufferedMove = null;
         score = previousState.score;
         targetScoreDisplay = score;
@@ -932,6 +938,7 @@
     }
 
     function initGame(restore = true) {
+        if (!restore) triggerVibration(15);
         // Native Persistence Load
         let savedState = localStorage.getItem('2048-state-v1');
         bestScore = localStorage.getItem('2048-best-v1') || 0;
@@ -1034,12 +1041,10 @@
         requiresSort = true;
     }
 
-    function move(dx, dy) {
+    function move(dx, dy, isBuffered = false) {
         if (gameOver) return;
-        if (isAnimating) {
+        if (!isBuffered && isAnimating) {
             bufferedMove = { dx, dy };
-            playSound('move');
-            triggerVibration([2]); // Immediate feedback
             return;
         }
 
@@ -1047,6 +1052,7 @@
 
         let moved = false;
         let scoreAdded = 0;
+        let maxMergedVal = 0;
 
         let rStart = dy === 1 ? 3 : 0;
         let rEnd = dy === 1 ? -1 : 4;
@@ -1093,12 +1099,13 @@
                         destTile.mergedThisTurn = true;
                         scoreAdded += destTile.targetVal;
 
+                        if (destTile.targetVal > maxMergedVal) maxMergedVal = destTile.targetVal;
+
                         if (milestones.includes(destTile.targetVal) && !achievedMilestones.has(destTile.targetVal)) {
                             achievedMilestones.add(destTile.targetVal);
                             localStorage.setItem('2048-milestones', JSON.stringify([...achievedMilestones]));
                             triggerConfetti(destTile.r, destTile.c);
                         }
-                        if (destTile.targetVal >= 128) triggerVibration([20]);
 
                         tile.r = destR;
                         tile.c = destC;
@@ -1142,13 +1149,22 @@
             spawnTile();
             saveState();
 
-            if (scoreAdded === 0) triggerVibration([5]); // Soft tap on regular move
+            // Vibration for move result
+            if (maxMergedVal >= 128) {
+                triggerVibration(70); // Stronger feedback for big merges
+            } else if (scoreAdded > 0) {
+                triggerVibration(20); // Slightly stronger than a plain swipe
+            } else {
+                triggerVibration(10); // Normal slide feedback
+            }
 
             // Evaluate Game Over state asynchronously to permit visible settling
             setTimeout(() => {
                 checkGameWon();
                 checkGameOver();
             }, 200);
+        } else {
+            triggerVibration(5); // Feedback for blocked moves
         }
     }
 
@@ -1159,11 +1175,14 @@
                 if (grid[r][c] && grid[r][c].targetVal === 2048) {
                     hasWon = true;
                     document.getElementById('game-won').classList.add('visible');
+                    triggerVibration(100);
 
-                    // Show Interstitial Ad on Game Won
-                    if (window.AndroidInterface && window.AndroidInterface.showInterstitialAd) {
-                        window.AndroidInterface.showInterstitialAd();
-                    }
+                    // Show Interstitial Ad on Game Won with 1.5s delay
+                    setTimeout(() => {
+                        if (window.AndroidInterface && window.AndroidInterface.showInterstitialAd) {
+                            window.AndroidInterface.showInterstitialAd();
+                        }
+                    }, 1500);
                     return;
                 }
             }
@@ -1189,11 +1208,14 @@
 
         gameOver = true;
         document.getElementById('game-over').classList.add('visible');
+        triggerVibration(80);
 
-        // Show Interstitial Ad on Game Over
-        if (window.AndroidInterface && window.AndroidInterface.showInterstitialAd) {
-            window.AndroidInterface.showInterstitialAd();
-        }
+        // Show Interstitial Ad on Game Over with 1.5s delay
+        setTimeout(() => {
+            if (window.AndroidInterface && window.AndroidInterface.showInterstitialAd) {
+                window.AndroidInterface.showInterstitialAd();
+            }
+        }, 1500);
     }
 
     // ================= RENDERING =================
@@ -1251,7 +1273,7 @@
         if (bufferedMove && tiles.every(t => t.moveProgress > 0.7 && !t.isSpawning && t.mergeProgress > 0.6)) {
             let moveData = bufferedMove;
             bufferedMove = null;
-            move(moveData.dx, moveData.dy);
+            move(moveData.dx, moveData.dy, true);
         }
 
         if (confettiParticles.length > 0) {
@@ -1373,16 +1395,19 @@
 
     function handleBack() {
         if (document.getElementById('about-overlay').classList.contains('visible')) {
+            triggerVibration(10);
             document.getElementById('about-overlay').classList.remove('visible');
             document.getElementById('settings-overlay').classList.add('visible');
             return true;
         }
         if (document.getElementById('settings-overlay').classList.contains('visible')) {
+            triggerVibration(10);
             document.getElementById('settings-overlay').classList.remove('visible');
             return true;
         }
         if (document.getElementById('game-over').classList.contains('visible') ||
             document.getElementById('game-won').classList.contains('visible')) {
+            triggerVibration(10);
             initGame(false);
             return true;
         }
