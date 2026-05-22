@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="640dp"
+    android:viewportWidth="360"
+    android:viewportHeight="640">
+    <!-- Position: y=560 in 640 viewport (87.5% down) -->
+    <!-- Width: 272 in 360 viewport + 20 (strokeWidth) for round caps = 292 total width. -->
+    <path
+        android:pathData="M44,560 L316,560"
+        android:strokeColor="#000000"
+        android:strokeWidth="20"
+        android:strokeLineCap="round" />
+</vector>

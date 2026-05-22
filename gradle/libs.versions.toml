@@ -11,6 +11,9 @@ composeBom = "2025.01.01"
 playServicesAds = "23.6.0"
 play-app-update = "2.1.0"
 lifecycle-process = "2.8.7"
+appcompat = "1.7.0"
+material = "1.12.0"
+coreSplashScreen = "1.0.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -31,6 +34,9 @@ play-services-ads = { group = "com.google.android.gms", name = "play-services-ad
 playAppUpdate = { group = "com.google.android.play", name = "app-update", version.ref = "play-app-update" }
 playAppUpdateKtx = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "play-app-update" }
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle-process" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashScreen" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
